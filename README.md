@@ -1,2 +1,2 @@
 # Credit-Card-Fraud
- ChatGPT The dataset records European card transactions in September 2013, with 492 frauds among 284,807 over two days, a 0.172% fraud rate. See Kaggle for more.
+The dataset includes credit card transactions made by European cardholders in September 2013. It features transactions over a period of two days, within which 492 out of 284,807 transactions were identified as fraudulent. The dataset exhibits a significant imbalance, with the fraudulent transactions (the positive class) constituting only 0.172% of the total transactions. For more details, you can visit the dataset on Kaggle: Credit Card Fraud Detection.
