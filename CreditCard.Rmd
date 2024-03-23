@@ -1,0 +1,129 @@
+---
+title: "CreditCard"
+output: html_document
+---
+
+Background:
+
+The datasets contains transactions made by credit cards in September 2013 by european cardholders. 
+This dataset presents transactions that occurred in two days, where we have 492 frauds out of 284,807 transactions. The dataset is highly unbalanced, the positive class (frauds) account for 0.172% of all transactions.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Clear Environment
+```{r}
+rm(list = ls())
+```
+
+## Load Dataset
+```{r}
+ccfraud <- read.csv("creditcard.csv")
+```
+
+## EDA
+```{r}
+library(dplyr)
+str(ccfraud)
+summary(ccfraud)
+glimpse(ccfraud)
+```
+
+## Count the number of raws that have class = 1 and class = 0
+```{r}
+library(dplyr)
+
+ccfraud %>% 
+  group_by(Class) %>% 
+  summarize(Count = n())
+
+```
+There are 284315 rows where fraud was not detected but there are 492 rows where fraud was detected.
+
+## Proportion of variance of the first eight principal components. 
+## Columns that have been transformed when PCA is reapplied to it. 
+```{r}
+library(stats)
+V_columns <- ccfraud[, 2:29]  
+Comp <- prcomp(V_columns)
+summary(Comp)
+variance_explained <- summary(Comp)$importance[2, 1:8]
+total_variance_explained <- sum(variance_explained)
+total_variance_explained
+```
+The first 8 components explains that the first 8 components captures 56.958% of the variance of the data. When columns that have already been transformed using PCA and PCA is reapplied on them, the output is equivalent to the original transformation. This is because PCA is an orthogonal transformation that ensures that the maximum variance between data point remains the same.We have decided to apply PCA again to columns on which PCA had already been applied because R does not realize that the input data was derived from conducting a PCA. Hence, we needed to redo the PCA in R to ensure that R is able to interpret and conduct an analysis.Furthermore, redoing the PCA can provide a different explanation as to how fraud is detected and what features increases the probability of fraud occurring.
+
+# Count the number of Principal Components to work with using screeplot() and plot()
+```{r}
+variances <- Comp$sdev^2
+
+plot(1:10, variances[1:10], xlab="Component", ylab="Variances", 
+     type="b", pch=1, main="PCA Scree Plot", xaxt='n') 
+
+labels <- rep("", length(variances[1:10]))
+labels[seq(1, length(labels), by=2)] <- paste("Comp.", seq(1, length(labels), by=2))
+axis(1, at=1:10, labels=labels)
+
+
+```
+We should work with the first 2 components because based on the point 'elbow' where the line starts to flatten out we can conclude that the other points will be less useful with providing an explanation as to which features detect fraud or explain why fraud may be happening. 
+
+## Based on comp 1 and comp 2 what is the Difference between the points for fraud and no fraud 
+```{r}
+library(ggplot2)
+ccfraud$Class <- as.numeric(ccfraud$Class)
+ccfraud_subset <- ccfraud[1:20000, ]
+
+ggplot(ccfraud_subset, aes(x = V1, y = V2, color = Class)) +
+  geom_point(alpha = 0.5) + 
+  scale_color_gradientn(colors = c("navyblue","skyblue")) + 
+  theme_minimal() + 
+  labs(title = "First Two Principal Components", color = "Class",
+ "First Two Principal Components", color = "Class") 
+
+
+```
+We see some points that are outliers that are represented as fraud or no fraud, however majority of the points overlap. Therefore, we can not say for sure that there is a distinction between fraud and no fraud data points.
+
+## Broke the first 20000 rows into 500 rows segments to analyze the distinctions between Class = 1 and Class = 0
+```{r}
+library(ggplot2)
+library(gridExtra)
+
+segments <- split(ccfraud[1:20000, ], ceiling(seq_len(nrow(ccfraud[1:20000, ]))/5000))
+
+plot_list <- list()
+
+for (i in 1:length(segments)) {
+  plot_list[[i]] <- ggplot(segments[[i]], aes(x = V1, y = V2, color = as.factor(Class))) +
+    geom_point(alpha = 0.5) + 
+    scale_color_manual(values = c("0" = "navyblue", "1" = "skyblue")) +
+    theme_minimal() +
+    labs(title = paste("Segment", i))
+}
+
+grid.arrange(grobs = plot_list, ncol = 2)
+
+
+
+
+```
+Segment 4 shows a distinct difference between Class = 1 and Class = 0 because the plot shows less of an overlap compared to the other clusters. 
+The other segments do not show a distinction because we have conducted a PCA on data that has had PCA already done. The risk of doing this is that everytime a PCA is conducted, information is lost in order to capture the most variance. Therefore, some of the loss information might have been needed in order to understand what is fraud and not fraud.
+
+## Performed Principal Component Regression 
+```{r}
+principal_components <- Comp$x[, 1:8]
+data_for_logit <- data.frame(principal_components, Class = ccfraud$Class)
+data_for_logit$Class <- as.factor(data_for_logit$Class)
+logit_model <- glm(Class ~ ., data = data_for_logit, family = "binomial")
+summary(logit_model)
+
+library(caret)
+predictions <- predict(logit_model, newdata = data_for_logit, type = "response")
+predicted_class <- ifelse(predictions > 0.5, 1, 0)
+confusionMatrix(as.factor(predicted_class), data_for_logit$Class)
+
+```
+
